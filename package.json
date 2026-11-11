@@ -1,6 +1,6 @@
 {
   "name": "aim-ollama",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A retro instant messenger for local Ollama models",
   "private": true,
   "type": "module",
