@@ -25,22 +25,34 @@
       <div class="roster-bottom"><button id="add" class="classic" type="button">＋ Add Buddy</button></div>
     </aside>
     <section class="window chat" aria-label="Instant message">
-      <div class="titlebar"><span aria-hidden="true">▣</span> <span id="chat-title">Instant Message</span></div>
+      <div class="titlebar"><span aria-hidden="true">⚡</span> <span id="chat-title">Instant Message</span><button id="maximize" class="window-button" type="button" aria-label="Maximize chat" aria-pressed="false">□</button></div>
       <div class="chat-header">
-        <div id="avatar" class="avatar">✦</div>
-        <div class="chat-identity"><h1 id="name">Select a buddy</h1><p id="model"></p></div>
         <button class="classic" id="edit" type="button">Edit Buddy</button>
+        <p id="model"></p>
       </div>
-      <div class="transcript" id="messages" role="log" aria-label="Conversation" tabindex="0"></div>
+      <div class="chat-pane">
+        <div class="icon-rail buddy-rail" aria-hidden="true"><canvas id="avatar" width="16" height="16"></canvas></div>
+        <div class="transcript" id="messages" role="log" aria-label="Conversation" tabindex="0"></div>
+      </div>
       <div class="composer">
         <p class="notice" id="notice" role="status"></p>
         <form id="compose">
-          <label class="sr-only" for="message">Message</label>
-          <textarea id="message" rows="3" maxlength="16000" placeholder="Type an instant message…"></textarea>
+          <div class="chat-pane compose-pane">
+            <div class="icon-rail user-rail" aria-hidden="true"><canvas id="user-avatar" width="16" height="16"></canvas></div>
+            <div class="write-panel">
+              <div class="format-bar" aria-label="Message controls">
+                <button id="text-size" type="button" aria-label="Larger chat text" aria-pressed="false"><strong>A</strong><sup>↑</sup></button>
+                <button id="smile" type="button" title="Insert smiley" aria-label="Insert smiley">☻</button>
+                <button id="wink" type="button" title="Insert wink" aria-label="Insert wink">😉</button>
+              </div>
+              <label class="sr-only" for="message">Message</label>
+              <textarea id="message" rows="3" maxlength="16000" placeholder="Type an instant message…"></textarea>
+            </div>
+          </div>
           <div class="composer-actions">
             <small>Enter to send · Shift+Enter for a new line</small>
-            <button id="stop" class="classic" type="button" hidden>Stop</button>
-            <button id="send" type="submit">Send IM <span aria-hidden="true">↵</span></button>
+            <button id="stop" class="classic action" type="button" hidden><span aria-hidden="true">■</span> Stop</button>
+            <button id="send" class="action" type="submit"><span aria-hidden="true">✉</span> Send</button>
           </div>
         </form>
       </div>

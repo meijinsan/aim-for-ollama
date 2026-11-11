@@ -14,6 +14,7 @@ The app defaults to Ollama at `http://127.0.0.1:11434`. Set the `OLLAMA_URL` env
 
 - `server.js` serves the interface and proxies model discovery and streamed chat to Ollama. The app listens on loopback and has no npm dependencies.
 - `public/app.js` manages the buddy list, settings, model discovery, and conversations. Buddy settings and history are stored in browser local storage for the current app URL. An active draft stays available while switching buddies in the same session.
+- The chat window follows the Windows XP-era AIM layout. Pixel portraits are drawn on canvas from small color grids. The composer toolbar inserts emoticons and adjusts the local display size.
 - A buddy is an Ollama chat profile. Ollama Modelfiles can provide model-level defaults. External tools and multi-agent orchestration are outside the current implementation.
 - This repository is the handoff record. Use `git log --oneline` and the notes here to recover context. Update the notes when setup or architecture changes. Runtime conversations stay in browser storage.
 

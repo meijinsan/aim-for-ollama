@@ -24,6 +24,62 @@ const messageBox = $('#message')
 const editor = $('#editor')
 const buddyForm = $('#buddy-form')
 const active = () => state.buddies.find(({ id }) => id === state.selected)
+const chatWindow = $('.chat')
+
+const portraits = {
+  bot: [
+    '................',
+    '.......kk.......',
+    '.......yk.......',
+    '.......kk.......',
+    '....kkkkkkkk....',
+    '...khhhhhhhsk...',
+    '..kkhhhhhhhskk..',
+    '..kyhkwhkwssyk..',
+    '..kyhkwhkwssyk..',
+    '..kkhhhkhhsskk..',
+    '...khkwwwkssk...',
+    '...khhkkksssk...',
+    '....kkkkkkkk....',
+    '.....kssssk.....',
+    '....kssssssk....',
+    '...kkkkkkkkkk...',
+  ],
+  user: [
+    '................',
+    '.....kkkkkk.....',
+    '....kbbbbbbk....',
+    '...kbbbbbbddk...',
+    '..kbbbbbbddddk..',
+    '.kkkkkkkkkkkkkk.',
+    '...kyyyyyyyk....',
+    '...kykykyyyk....',
+    '....kyyyyyk.....',
+    '.....kkkkk......',
+    '...kkbbdbbkk....',
+    '..kbbbbdbbbbk...',
+    '..kykbbdbbk yk..',
+    '....kbbdbbk.....',
+    '....kkk.kkk.....',
+    '................',
+  ],
+}
+
+function drawPortrait(canvas, art, accent) {
+  const context = canvas.getContext('2d')
+  const palette = {
+    k: '#171e3e', y: '#ffdd57', h: '#fff394', s: accent, w: '#fff',
+    b: '#3d9bdf', d: '#1b60a5',
+  }
+  context.clearRect(0, 0, canvas.width, canvas.height)
+  art.forEach((row, y) => {
+    Array.from(row).forEach((pixel, x) => {
+      if (!palette[pixel]) return
+      context.fillStyle = palette[pixel]
+      context.fillRect(x, y, 1, 1)
+    })
+  })
+}
 
 function save() {
   try {
@@ -71,14 +127,17 @@ function renderComposer() {
   $('#send').disabled = !buddy || busy || !connected || !messageBox.value.trim()
   $('#stop').hidden = !busy
   messageBox.disabled = !buddy
+  $('#smile').disabled = !buddy
+  $('#wink').disabled = !buddy
 }
 
 function appendMessage(buddy, message) {
   const row = node('div', '', 'entry ' + message.role)
   const time = node('time', timeFormat.format(message.time))
   time.dateTime = new Date(message.time).toISOString()
-  const body = node('div', message.content || 'Typing…')
-  row.append(node('strong', message.role === 'user' ? 'You' : buddy.name), time, body)
+  const body = node('span', message.content || 'Typing…')
+  const sender = message.role === 'user' ? 'You' : buddy.name
+  row.append(node('strong', sender + ': '), body, time)
   transcript.append(row)
   return body
 }
@@ -104,10 +163,10 @@ function renderTranscript() {
 
 function render() {
   const buddy = active()
-  $('#chat-title').textContent = buddy ? buddy.name + ' — Instant Message' : 'Instant Message'
-  $('#name').textContent = buddy?.name || 'Select a buddy'
+  $('#chat-title').textContent = buddy ? buddy.name + ' : You - Instant Message' : 'Instant Message'
   $('#model').textContent = buddy?.model || ''
-  $('#avatar').textContent = buddy?.glyph || '✦'
+  const accents = ['#eab43f', '#ee9474', '#72c995', '#79b4ef', '#d595dc']
+  drawPortrait($('#avatar'), portraits.bot, accents[glyphs.indexOf(buddy?.glyph)] || accents[0])
   $('#edit').disabled = !buddy
   messageBox.value = drafts.get(buddy?.id) || ''
   renderRoster()
@@ -162,6 +221,25 @@ function openEditor(buddy) {
 }
 
 $('#connection').addEventListener('click', connect)
+$('#maximize').addEventListener('click', (event) => {
+  const expanded = chatWindow.classList.toggle('maximized')
+  const button = event.currentTarget
+  button.setAttribute('aria-pressed', expanded)
+  button.setAttribute('aria-label', expanded ? 'Restore chat size' : 'Maximize chat')
+  button.textContent = expanded ? '❐' : '□'
+})
+$('#text-size').addEventListener('click', (event) => {
+  event.currentTarget.setAttribute('aria-pressed', chatWindow.classList.toggle('large-text'))
+})
+for (const [id, face] of [['#smile', '☺'], ['#wink', '😉']]) {
+  $(id).addEventListener('click', () => {
+    const { selectionStart, selectionEnd, value, maxLength } = messageBox
+    if (value.length - (selectionEnd - selectionStart) + face.length > maxLength) return
+    messageBox.setRangeText(face, selectionStart, selectionEnd, 'end')
+    messageBox.dispatchEvent(new Event('input'))
+    messageBox.focus()
+  })
+}
 $('#add').addEventListener('click', () => openEditor())
 $('#edit').addEventListener('click', () => openEditor(active()))
 $('#cancel').addEventListener('click', () => editor.close())
@@ -291,5 +369,6 @@ $('#compose').addEventListener('submit', async (event) => {
   }
 })
 
+drawPortrait($('#user-avatar'), portraits.user)
 render()
 connect()
