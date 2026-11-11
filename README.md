@@ -20,7 +20,9 @@ The app defaults to Ollama at `http://127.0.0.1:11434`. Set the `OLLAMA_URL` env
 
 ## OpenAI buddies
 
-In **Add Buddy** or **Edit Buddy**, choose **OpenAI** as the provider and enter a text model ID that your OpenAI API project can access. Ollama buddies use the local model list. Each buddy routes messages to its selected provider.
+In **Add Buddy** or **Edit Buddy**, choose **OpenAI** as the provider and select a GPT chat model listed for your API key. You can also enter a model ID manually. Ollama buddies use the local model list. Each buddy routes messages to its selected provider.
+
+The **Personality** menus let you set gender presentation, mood, and conversation style for either provider. AIM includes selected traits as defaults alongside the buddy's system prompt.
 
 Create an [OpenAI API key](https://platform.openai.com/api-keys) and add a Windows user environment variable named `OPENAI_API_KEY` with the key as its value. In the Start menu, search for **Edit environment variables for your account**, then choose **New** under **User variables**. Close and reopen AIM after saving it. The app reads the key in its backend and keeps it out of buddy profiles. OpenAI receives the buddy's conversation and bills usage to your API project.
 
@@ -28,7 +30,7 @@ Create an [OpenAI API key](https://platform.openai.com/api-keys) and add a Windo
 
 - `server.js` serves the interface, discovers Ollama models, and streams replies from the selected provider. `web.js` starts it on the browser port. The Electron desktop app uses a stable `aim://desktop/` origin backed by its own loopback server on an available port.
 - `public/app.js` manages the buddy list, settings, model discovery, and conversations. Buddy settings and history are stored in browser local storage for the current app URL. An active draft stays available while switching buddies in the same session.
-- The chat window follows the Windows XP-era AIM layout. Pixel portraits are drawn on canvas from small color grids. The composer toolbar opens an offline emoji picker and adjusts the local display size.
+- The chat window follows the Windows XP-era AIM layout. Pixel portraits are drawn on canvas from small color grids. The composer toolbar formats the whole outgoing message, inserts links, and opens an offline emoji picker. The model receives the message as plain text.
 - The emoji catalog uses the Unicode Emoji 17.0 test data and includes fully qualified emoji and standalone components. See [Unicode data](https://www.unicode.org/Public/17.0.0/emoji/emoji-test.txt) and [license](UNICODE-LICENSE.txt).
 - Ollama Modelfiles can provide model-level defaults. External tools and multi-agent orchestration are outside the current implementation.
 - This repository is the handoff record. Use `git log --oneline` and the notes here to recover context. Update the notes when setup or architecture changes. Runtime conversations stay in browser storage.

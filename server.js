@@ -36,6 +36,7 @@ async function handleRequest(req, res) {
   }
   const list = req.method === 'GET' && path === '/api/tags'
   const openai = path === '/api/openai/chat'
+  const openAIList = req.method === 'GET' && path === '/api/openai/models'
   const key = process.env.OPENAI_API_KEY?.trim()
   if (req.method === 'GET' && path === '/api/openai/status') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
@@ -43,7 +44,7 @@ async function handleRequest(req, res) {
     return
   }
   const chat = req.method === 'POST' && (path === '/api/chat' || openai)
-  if (!list && !chat) {
+  if (!list && !chat && !openAIList) {
     res.writeHead(404).end()
     return
   }
@@ -56,6 +57,10 @@ async function handleRequest(req, res) {
   const controller = new AbortController()
   res.on('close', () => controller.abort())
   try {
+    if (openAIList) {
+      await listOpenAIModels(key, controller.signal, res)
+      return
+    }
     const chunks = []
     let size = 0
     if (chat) {
@@ -90,8 +95,32 @@ async function handleRequest(req, res) {
       return
     }
     res.writeHead(502, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ error: openai ? 'Could not reach OpenAI. Try again.' : 'Could not reach Ollama. Start Ollama and try again.' }))
+    res.end(JSON.stringify({ error: openai || openAIList ? 'Could not reach OpenAI. Try again.' : 'Could not reach Ollama. Start Ollama and try again.' }))
   }
+}
+
+async function listOpenAIModels(key, signal, res) {
+  const send = (status, data) => {
+    res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+    res.end(JSON.stringify(data))
+  }
+  if (!key) return send(503, { error: 'Set OPENAI_API_KEY and restart AIM to load OpenAI models.' })
+  const response = await fetch('https://api.openai.com/v1/models', {
+    headers: { Authorization: 'Bearer ' + key },
+    signal: AbortSignal.any([signal, AbortSignal.timeout(8000)]),
+    redirect: 'error',
+  })
+  if (!response.ok) {
+    await response.body?.cancel()
+    return send(response.status, { error: 'OpenAI could not list models. Check your API key and project permissions.' })
+  }
+  const { data } = await response.json()
+  // The models endpoint has no capabilities field. Keep likely text models and offer manual entry.
+  const ids = data.filter(({ id }) => typeof id === 'string' &&
+    /^(?:gpt-|chatgpt-|o\d(?:-|$)|ft:(?:gpt-|o\d))/.test(id) &&
+    !/(?:^|[-:])(?:audio|realtime|image|transcribe|tts|search|codex|instruct|diarize|embedding)(?:[-:]|$)/.test(id))
+    .map(({ id }) => id)
+  send(200, { models: [...new Set(ids)].sort((a, b) => b.localeCompare(a, undefined, { numeric: true })) })
 }
 
 async function streamOpenAI(body, key, signal, res) {

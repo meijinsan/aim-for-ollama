@@ -14,14 +14,23 @@ function restore() {
 const state = restore()
 const jobs = new Map()
 const drafts = new Map()
+const draftFormats = new Map()
 const notices = new Map()
 let models = []
 let connected = false
 let openAIConfigured = false
+let openAIModels = []
+let modelListStatus = ''
+let loadingOpenAIModels = false
+const traitNames = { gender: 'Gender presentation', mood: 'Mood', style: 'Conversation style' }
 let editing = null
 let storageFailed = false
 const transcript = $('#messages')
 const messageBox = $('#message')
+const formatBar = $('.format-bar')
+const formatControls = [...formatBar.querySelectorAll('[data-format]')]
+const linkEditor = $('#link-editor')
+const linkForm = $('#link-form')
 const editor = $('#editor')
 const buddyForm = $('#buddy-form')
 const active = () => state.buddies.find(({ id }) => id === state.selected)
@@ -141,14 +150,54 @@ function renderComposer() {
   $('#send').disabled = !buddy || busy || !ready || !messageBox.value.trim()
   $('#stop').hidden = !busy
   messageBox.disabled = !buddy
-  $('#emoji').disabled = !buddy
+  for (const control of formatBar.querySelectorAll('button, input, select')) control.disabled = !buddy
+}
+
+function applyMessageFormat(element, format = {}) {
+  const validColor = (color) => /^#[0-9a-f]{6}$/i.test(color || '') ? color : ''
+  element.style.color = validColor(format.color)
+  element.style.backgroundColor = validColor(format.backgroundColor)
+  element.style.fontFamily = ['Arial', 'Tahoma', 'Georgia', 'Courier New'].includes(format.fontFamily) ? format.fontFamily : ''
+  element.style.fontSize = ['12', '15', '18', '24'].includes(format.fontSize) ? format.fontSize + 'px' : ''
+  element.style.fontWeight = format.bold ? 'bold' : ''
+  element.style.fontStyle = format.italic ? 'italic' : ''
+  element.style.textDecoration = format.underline ? 'underline' : ''
+}
+
+function renderDraftFormat() {
+  const format = draftFormats.get(state.selected) || {}
+  applyMessageFormat(messageBox, format)
+  for (const control of formatControls) {
+    const value = format[control.dataset.format]
+    if (control.matches('button')) control.setAttribute('aria-pressed', Boolean(value))
+    else control.value = value ?? (control.type === 'color' ? control.defaultValue : '')
+  }
+}
+
+function appendLinks(body, text) {
+  let offset = 0
+  for (const match of text.matchAll(/https?:\/\/[^\s<>"']+/gi)) {
+    const address = match[0].replace(/[.,!?;]+$/, '')
+    if (!URL.canParse(address)) continue
+    const link = node('a', address)
+    link.href = address
+    link.target = '_blank'
+    link.rel = 'noopener noreferrer'
+    body.append(text.slice(offset, match.index), link)
+    offset = match.index + address.length
+  }
+  body.append(text.slice(offset))
 }
 
 function appendMessage(buddy, message) {
   const row = node('div', '', 'entry ' + message.role)
   const time = node('time', timeFormat.format(message.time))
   time.dateTime = new Date(message.time).toISOString()
-  const body = node('span', message.content || 'Typing…')
+  const body = node('span', message.role === 'user' ? '' : message.content || 'Typing…')
+  if (message.role === 'user') {
+    appendLinks(body, message.content)
+    applyMessageFormat(body, message.format)
+  }
   const sender = message.role === 'user' ? 'You' : buddy.name
   row.append(node('strong', sender + ': '), body, time)
   transcript.append(row)
@@ -182,6 +231,7 @@ function render() {
   drawPortrait($('#avatar'), portraits.bot, accents[glyphs.indexOf(buddy?.glyph)] || accents[0])
   $('#edit').disabled = !buddy
   messageBox.value = drafts.get(buddy?.id) || ''
+  renderDraftFormat()
   renderRoster()
   renderTranscript()
   renderComposer()
@@ -220,9 +270,7 @@ async function connect() {
       ? models.length + (models.length === 1 ? ' model available' : ' models available')
       : 'Local Ollama · port 11434 by default'
     if (editor.open && buddyForm.elements.provider.value === 'ollama') {
-      const { model, customModel } = buddyForm.elements
-      setModelOptions(model.value === customModelOption ? customModel.value : model.value,
-        model.value === customModelOption)
+      updateModelOptions()
     }
     render()
   }
@@ -239,26 +287,58 @@ async function refreshOpenAI() {
   renderComposer()
 }
 
+async function loadOpenAIModels() {
+  if (loadingOpenAIModels) return
+  loadingOpenAIModels = true
+  modelListStatus = 'Loading OpenAI models…'
+  renderModelStatus()
+  try {
+    const response = await fetch('/api/openai/models', { cache: 'no-store' })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error)
+    openAIModels = data.models
+    modelListStatus = openAIModels.length ? '' : 'No GPT chat models listed. You can enter a model ID manually.'
+  } catch (error) {
+    modelListStatus = error.message || 'Could not load OpenAI models.'
+  } finally {
+    loadingOpenAIModels = false
+    if (editor.open && buddyForm.elements.provider.value === 'openai') updateModelOptions()
+  }
+}
+
+function renderModelStatus() {
+  const status = $('#model-list-status')
+  status.textContent = modelListStatus
+  status.hidden = buddyForm.elements.provider.value !== 'openai' || !modelListStatus
+}
+
+function updateModelOptions() {
+  const { model, customModel } = buddyForm.elements
+  const manual = model.value === customModelOption && Boolean(customModel.value)
+  setModelOptions(model.value === customModelOption ? customModel.value : model.value, manual)
+}
+
 function syncCustomModel() {
   const { provider, model, customModel } = buddyForm.elements
   const openai = provider.value === 'openai'
-  const manual = openai || model.value === customModelOption
+  const manual = model.value === customModelOption
   $('#openai-help').hidden = !openai
-  $('#ollama-model').hidden = openai
-  model.disabled = openai
+  $('#model-label').textContent = openai ? 'OpenAI model' : 'Ollama model'
+  renderModelStatus()
   $('#custom-model').hidden = !manual
   customModel.disabled = !manual
   customModel.required = manual
 }
 
 function setModelOptions(selected, manual = false) {
-  const { model, customModel } = buddyForm.elements
-  const options = models.map((name) => new Option(name, name))
-  if (!manual && selected && !models.includes(selected)) {
-    options.push(new Option(selected + ' (unavailable)', selected))
+  const { provider, model, customModel } = buddyForm.elements
+  const available = provider.value === 'openai' ? openAIModels : models
+  const options = available.map((name) => new Option(name, name))
+  if (!manual && selected && !available.includes(selected)) {
+    options.push(new Option(selected + ' (not listed)', selected))
   }
   model.replaceChildren(...options, new Option('Enter model name…', customModelOption))
-  model.value = manual ? customModelOption : selected || models[0] || customModelOption
+  model.value = manual ? customModelOption : selected || available[0] || customModelOption
   customModel.value = manual ? selected : ''
   customModel.setCustomValidity('')
   syncCustomModel()
@@ -271,10 +351,15 @@ function openEditor(buddy) {
   buddyForm.elements.name.value = buddy?.name || ''
   const provider = buddy?.provider || 'ollama'
   buddyForm.elements.provider.value = provider
-  setModelOptions(provider === 'openai' ? undefined : buddy?.model)
-  if (provider === 'openai') buddyForm.elements.customModel.value = buddy.model
+  setModelOptions(buddy?.model)
+  for (const trait of Object.keys(traitNames)) {
+    const field = buddyForm.elements[trait]
+    field.value = buddy?.traits?.[trait] || ''
+    if (field.selectedIndex < 0) field.value = ''
+  }
   buddyForm.elements.prompt.value = buddy?.prompt || ''
   editor.showModal()
+  if (provider === 'openai') loadOpenAIModels()
 }
 
 $('#connection').addEventListener('click', connect)
@@ -285,8 +370,47 @@ $('#maximize').addEventListener('click', (event) => {
   button.setAttribute('aria-label', expanded ? 'Restore chat size' : 'Maximize chat')
   button.textContent = expanded ? '❐' : '□'
 })
-$('#text-size').addEventListener('click', (event) => {
-  event.currentTarget.setAttribute('aria-pressed', chatWindow.classList.toggle('large-text'))
+for (const control of formatControls) {
+  const toggle = control.matches('button')
+  control.addEventListener(toggle ? 'click' : 'input', () => {
+    if (!active()) return
+    const format = { ...draftFormats.get(state.selected) }
+    const property = control.dataset.format
+    format[property] = toggle ? !format[property] : control.value
+    draftFormats.set(state.selected, format)
+    renderDraftFormat()
+    if (toggle) messageBox.focus()
+  })
+}
+$('#clear-format').addEventListener('click', () => {
+  draftFormats.delete(state.selected)
+  renderDraftFormat()
+  messageBox.focus()
+})
+$('#insert-link').addEventListener('click', () => {
+  linkForm.reset()
+  linkForm.elements.url.setCustomValidity('')
+  linkEditor.showModal()
+})
+$('#cancel-link').addEventListener('click', () => linkEditor.close())
+linkForm.elements.url.addEventListener('input', (event) => event.target.setCustomValidity(''))
+linkForm.addEventListener('submit', (event) => {
+  event.preventDefault()
+  const field = linkForm.elements.url
+  const address = field.value.trim()
+  const before = messageBox.value[messageBox.selectionStart - 1]
+  const after = messageBox.value[messageBox.selectionEnd]
+  const text = (before && !/\s/.test(before) ? ' ' : '') + address + (after && !/\s/.test(after) ? ' ' : '')
+  if (!/^https?:\/\//i.test(address) || !URL.canParse(address)) {
+    field.setCustomValidity('Enter a web address starting with https:// or http://.')
+  } else if (!insertDraftText(text)) {
+    field.setCustomValidity('The message is too long to add this link.')
+  } else {
+    linkEditor.close()
+    messageBox.focus()
+    return
+  }
+  field.reportValidity()
 })
 function renderEmoji() {
   if (!emojiCatalog) return
@@ -345,16 +469,21 @@ emojiResults.addEventListener('keydown', (event) => {
 emojiResults.addEventListener('click', (event) => {
   if (!event.target.matches('button')) return
   const face = event.target.textContent
-  const { selectionStart, selectionEnd, value, maxLength } = messageBox
-  if (value.length - (selectionEnd - selectionStart) + face.length > maxLength) {
+  if (!insertDraftText(face)) {
     emojiStatus.textContent = 'The message is too long to add this emoji.'
     return
   }
-  messageBox.setRangeText(face, selectionStart, selectionEnd, 'end')
-  messageBox.dispatchEvent(new Event('input'))
   emojiPicker.close()
   messageBox.focus()
 })
+
+function insertDraftText(text) {
+  const { selectionStart, selectionEnd, value, maxLength } = messageBox
+  if (value.length - (selectionEnd - selectionStart) + text.length > maxLength) return false
+  messageBox.setRangeText(text, selectionStart, selectionEnd, 'end')
+  messageBox.dispatchEvent(new Event('input'))
+  return true
+}
 $('#add').addEventListener('click', () => openEditor())
 $('#edit').addEventListener('click', () => openEditor(active()))
 $('#cancel').addEventListener('click', () => editor.close())
@@ -364,6 +493,7 @@ $('#remove').addEventListener('click', () => {
   jobs.get(buddy.id)?.controller.abort()
   state.buddies = state.buddies.filter(({ id }) => id !== editing)
   drafts.delete(editing)
+  draftFormats.delete(editing)
   notices.delete(editing)
   state.selected = state.buddies[0]?.id || null
   save()
@@ -373,7 +503,10 @@ $('#remove').addEventListener('click', () => {
 
 buddyForm.addEventListener('input', (event) => event.target.setCustomValidity?.(''))
 buddyForm.elements.model.addEventListener('change', syncCustomModel)
-buddyForm.elements.provider.addEventListener('change', () => setModelOptions())
+buddyForm.elements.provider.addEventListener('change', () => {
+  setModelOptions()
+  if (buddyForm.elements.provider.value === 'openai') loadOpenAIModels()
+})
 buddyForm.addEventListener('submit', (event) => {
   event.preventDefault()
   const { name, provider, model, customModel, prompt } = buddyForm.elements
@@ -384,7 +517,8 @@ buddyForm.addEventListener('submit', (event) => {
     field.reportValidity()
     return
   }
-  const settings = { name: name.value.trim(), provider: provider.value, model: modelField.value.trim(), prompt: prompt.value.trim() }
+  const traits = Object.fromEntries(Object.keys(traitNames).map((trait) => [trait, buddyForm.elements[trait].value]))
+  const settings = { name: name.value.trim(), provider: provider.value, model: modelField.value.trim(), prompt: prompt.value.trim(), traits }
   const buddy = state.buddies.find(({ id }) => id === editing)
   if (settings.provider === 'openai' && buddy?.provider !== 'openai' && buddy?.messages.length &&
       !confirm('Future messages to this buddy will send its existing conversation to OpenAI. Switch provider?')) return
@@ -426,9 +560,10 @@ $('#compose').addEventListener('submit', async (event) => {
     reply: { role: 'assistant', content: '', time: Date.now() },
     body: null,
   }
-  const userMessage = { role: 'user', content, time: Date.now() }
+  const userMessage = { role: 'user', content, time: Date.now(), format: draftFormats.get(buddy.id) }
   buddy.messages.push(userMessage)
   drafts.delete(buddy.id)
+  draftFormats.delete(buddy.id)
   notices.delete(buddy.id)
   jobs.set(buddy.id, job)
   save()
@@ -436,7 +571,11 @@ $('#compose').addEventListener('submit', async (event) => {
 
   try {
     const messages = buddy.messages.map(({ role, content }) => ({ role, content }))
-    if (buddy.prompt) messages.unshift({ role: 'system', content: buddy.prompt })
+    const traits = Object.entries(traitNames).filter(([trait]) => buddy.traits?.[trait])
+      .map(([trait, label]) => label + ': ' + buddy.traits[trait])
+    const personality = traits.length ? 'Portray this buddy with these defaults when consistent with the system prompt.\n' + traits.join('\n') : ''
+    const instructions = [buddy.prompt, personality].filter(Boolean).join('\n\n')
+    if (instructions) messages.unshift({ role: 'system', content: instructions })
     const response = await fetch(openai ? '/api/openai/chat' : '/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -479,7 +618,10 @@ $('#compose').addEventListener('submit', async (event) => {
       notices.set(buddy.id, job.controller.signal.aborted ? 'Reply stopped.' : error.message)
       if (!job.reply.content.trim()) {
         buddy.messages.pop()
-        if (!drafts.get(buddy.id)) drafts.set(buddy.id, content)
+        if (!drafts.get(buddy.id)) {
+          drafts.set(buddy.id, content)
+          if (!draftFormats.has(buddy.id) && userMessage.format) draftFormats.set(buddy.id, userMessage.format)
+        }
       }
     }
   } finally {

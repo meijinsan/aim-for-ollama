@@ -40,9 +40,17 @@
           <div class="chat-pane compose-pane">
             <div class="icon-rail user-rail" aria-hidden="true"><canvas id="user-avatar" width="16" height="16"></canvas></div>
             <div class="write-panel">
-              <div class="format-bar" aria-label="Message controls">
-                <button id="text-size" type="button" aria-label="Larger chat text" aria-pressed="false"><strong>A</strong><sup>↑</sup></button>
+              <div class="format-bar" role="group" aria-label="Message formatting">
+                <label class="color-control" title="Text color"><span aria-hidden="true">A</span><input type="color" data-format="color" aria-label="Text color" value="#141414"></label>
+                <label class="color-control highlight-control" title="Highlight color"><span aria-hidden="true">A</span><input type="color" data-format="backgroundColor" aria-label="Highlight color" value="#ffffff"></label>
+                <select data-format="fontFamily" aria-label="Font" title="Font"><option value="">Font</option><option>Arial</option><option>Tahoma</option><option>Georgia</option><option>Courier New</option></select>
+                <select data-format="fontSize" aria-label="Font size" title="Font size"><option value="">Size</option><option>12</option><option>15</option><option>18</option><option>24</option></select>
+                <button data-format="bold" type="button" aria-label="Bold" title="Bold message" aria-pressed="false"><b>B</b></button>
+                <button data-format="italic" type="button" aria-label="Italic" title="Italic message" aria-pressed="false"><i>I</i></button>
+                <button data-format="underline" type="button" aria-label="Underline" title="Underline message" aria-pressed="false"><u>U</u></button>
+                <button id="insert-link" type="button" title="Insert link" aria-haspopup="dialog"><u>Link</u></button>
                 <button id="emoji" type="button" title="Choose emoji" aria-label="Choose emoji" aria-haspopup="dialog">🙂</button>
+                <button id="clear-format" type="button" title="Clear message formatting" aria-label="Clear formatting">A×</button>
               </div>
               <label class="sr-only" for="message">Message</label>
               <textarea id="message" rows="3" maxlength="16000" placeholder="Type an instant message…"></textarea>
@@ -58,6 +66,18 @@
     </section>
   </main>
   <footer class="statusbar"><span>ϟ &nbsp; AIM for Ollama</span><span id="status-models"></span></footer>
+  <dialog id="link-editor" aria-labelledby="link-title">
+    <form id="link-form">
+      <div class="titlebar" id="link-title">Insert Link</div>
+      <div class="editor-body">
+        <label>Web address<input name="url" type="url" required placeholder="https://example.com"></label>
+        <div class="editor-actions">
+          <button id="cancel-link" class="classic" type="button">Cancel</button>
+          <button class="primary" type="submit">Insert Link</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
   <dialog id="emoji-picker" aria-labelledby="emoji-title">
     <div class="titlebar"><span id="emoji-title">Choose an Emoji</span><button id="close-emoji" class="window-button" type="button" aria-label="Close emoji picker">×</button></div>
     <div class="emoji-body">
@@ -74,8 +94,15 @@
         <label>Screen name<input name="name" required maxlength="36" placeholder="e.g. StudyBuddy"></label>
         <label>Provider<select name="provider"><option value="ollama">Ollama</option><option value="openai">OpenAI</option></select></label>
         <p id="openai-help" hidden>OpenAI buddies send their conversation to OpenAI and use your API quota.</p>
-        <label id="ollama-model">Ollama model<select name="model" required></select></label>
+        <label><span id="model-label">Ollama model</span><select name="model" required></select></label>
+        <p id="model-list-status" role="status" hidden></p>
         <label id="custom-model" hidden>Model name<input name="customModel" maxlength="128" placeholder="Type a model name" disabled></label>
+        <fieldset class="buddy-traits">
+          <legend>Personality</legend>
+          <label>Gender presentation<select name="gender"><option value="">Unspecified</option><option value="male">Male</option><option value="female">Female</option><option value="nonbinary">Nonbinary</option></select></label>
+          <label>Mood<select name="mood"><option value="">Default</option><option value="cheerful">Cheerful</option><option value="calm">Calm</option><option value="playful">Playful</option><option value="serious">Serious</option><option value="dry">Dry</option></select></label>
+          <label>Conversation style<select name="style"><option value="">Default</option><option value="casual">Casual</option><option value="concise">Concise</option><option value="detailed">Detailed</option><option value="formal">Formal</option></select></label>
+        </fieldset>
         <label>System prompt<textarea name="prompt" rows="5" maxlength="16000" placeholder="Describe how this buddy should respond."></textarea></label>
         <div class="editor-actions">
           <button id="remove" class="classic remove" type="button">Remove Buddy</button>

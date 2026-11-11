@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, protocol } from 'electron'
+import { app, BrowserWindow, dialog, protocol, shell } from 'electron'
 import { createAimServer } from './server.js'
 import { ensureOllama } from './ollama.js'
 
@@ -37,7 +37,10 @@ async function open() {
     autoHideMenuBar: true, backgroundColor: '#0c2255',
     webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false },
   })
-  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) void shell.openExternal(url).catch(() => {})
+    return { action: 'deny' }
+  })
   window.webContents.on('will-navigate', (event) => event.preventDefault())
   await window.loadURL(home)
 }
