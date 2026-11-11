@@ -72,7 +72,9 @@
       <div class="titlebar" id="editor-title">Add Buddy</div>
       <div class="editor-body">
         <label>Screen name<input name="name" required maxlength="36" placeholder="e.g. StudyBuddy"></label>
-        <label>Ollama model<select name="model" required></select></label>
+        <label>Provider<select name="provider"><option value="ollama">Ollama</option><option value="openai">OpenAI</option></select></label>
+        <p id="openai-help" hidden>OpenAI buddies send their conversation to OpenAI and use your API quota.</p>
+        <label id="ollama-model">Ollama model<select name="model" required></select></label>
         <label id="custom-model" hidden>Model name<input name="customModel" maxlength="128" placeholder="Type a model name" disabled></label>
         <label>System prompt<textarea name="prompt" rows="5" maxlength="16000" placeholder="Describe how this buddy should respond."></textarea></label>
         <div class="editor-actions">
