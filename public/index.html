@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AIM for Ollama</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <div class="brand"><span class="bolt" aria-hidden="true">ϟ</span> AIM <small>FOR OLLAMA</small></div>
+    <button id="connection" class="connection" type="button" title="Refresh Ollama connection"><i></i><span>Checking Ollama…</span><b aria-hidden="true">↻</b></button>
+  </header>
+  <main class="desktop">
+    <aside class="window roster" aria-label="Buddy list">
+      <div class="titlebar"><span aria-hidden="true">ϟ</span> Buddy List</div>
+      <div class="roster-banner">
+        <div class="banner-mark" aria-hidden="true">ϟ</div>
+        <div><strong>AIM</strong><small>INSTANT MESSENGER</small></div>
+      </div>
+      <div class="identity"><span class="dot"></span> <strong>You</strong><small>Local session</small></div>
+      <div class="group"><span aria-hidden="true">▾</span> Bot Buddies <span id="count"></span></div>
+      <div id="buddies" class="buddies"></div>
+      <div class="roster-bottom"><button id="add" class="classic" type="button">＋ Add Buddy</button></div>
+    </aside>
+    <section class="window chat" aria-label="Instant message">
+      <div class="titlebar"><span aria-hidden="true">▣</span> <span id="chat-title">Instant Message</span></div>
+      <div class="chat-header">
+        <div id="avatar" class="avatar">✦</div>
+        <div class="chat-identity"><h1 id="name">Select a buddy</h1><p id="model"></p></div>
+        <button class="classic" id="edit" type="button">Edit Buddy</button>
+      </div>
+      <div class="transcript" id="messages" role="log" aria-label="Conversation" tabindex="0"></div>
+      <div class="composer">
+        <p class="notice" id="notice" role="status"></p>
+        <form id="compose">
+          <label class="sr-only" for="message">Message</label>
+          <textarea id="message" rows="3" maxlength="16000" placeholder="Type an instant message…"></textarea>
+          <div class="composer-actions">
+            <small>Enter to send · Shift+Enter for a new line</small>
+            <button id="stop" class="classic" type="button" hidden>Stop</button>
+            <button id="send" type="submit">Send IM <span aria-hidden="true">↵</span></button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </main>
+  <footer class="statusbar"><span>ϟ &nbsp; AIM for Ollama</span><span id="status-models"></span></footer>
+  <dialog id="editor">
+    <form id="buddy-form">
+      <div class="titlebar" id="editor-title">Add Buddy</div>
+      <div class="editor-body">
+        <label>Screen name<input name="name" required maxlength="36" placeholder="e.g. StudyBuddy"></label>
+        <label>Ollama model<input name="model" list="installed-models" required maxlength="128" placeholder="Select or type a model name"></label>
+        <datalist id="installed-models"></datalist>
+        <label>System prompt<textarea name="prompt" rows="5" maxlength="16000" placeholder="Describe how this buddy should respond."></textarea></label>
+        <div class="editor-actions">
+          <button id="remove" class="classic remove" type="button">Remove Buddy</button>
+          <button id="cancel" class="classic" type="button">Cancel</button>
+          <button class="primary" type="submit">Save Buddy</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>
