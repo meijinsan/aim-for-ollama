@@ -3,12 +3,41 @@ const storageKey = 'aim-for-ollama:v1'
 const glyphs = ['✦', '◆', '☀', '☾', '✿']
 const timeFormat = new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' })
 
+function finalReply(content) {
+  const tags = [...content.matchAll(/<\s*(\/?)\s*think\s*>/gi)]
+  if (!tags.length) return content
+  let visible = ''
+  let offset = 0
+  let depth = 0
+  for (const tag of tags) {
+    if (!depth) visible += content.slice(offset, tag.index)
+    if (!tag[1]) depth++
+    else if (depth) depth--
+    // Some models emit only the closing tag after their reasoning.
+    else visible = ''
+    offset = tag.index + tag[0].length
+  }
+  if (!depth) visible += content.slice(offset)
+  return visible.trim()
+}
+
 function restore() {
   try {
-    return JSON.parse(localStorage.getItem(storageKey)) || { buddies: [], selected: null }
+    const saved = JSON.parse(localStorage.getItem(storageKey))
+    if (saved) {
+      for (const buddy of saved.buddies) {
+        buddy.messages = buddy.messages.filter((message) => {
+          if (message.role !== 'assistant') return true
+          message.content = finalReply(message.content)
+          return Boolean(message.content.trim())
+        })
+      }
+      return saved
+    }
   } catch {
-    return { buddies: [], selected: null }
+    // Fall back to an empty buddy list if storage cannot be read.
   }
+  return { buddies: [], selected: null }
 }
 
 const state = restore()
@@ -214,7 +243,7 @@ function renderTranscript() {
   if (buddy) {
     for (const message of buddy.messages) appendMessage(buddy, message)
     const job = jobs.get(buddy.id)
-    if (job) job.body = appendMessage(buddy, job.reply)
+    if (job) appendMessage(buddy, job.reply)
   }
   scrollToLatest()
 }
@@ -502,7 +531,6 @@ $('#compose').addEventListener('submit', async (event) => {
   const job = {
     controller: new AbortController(),
     reply: { role: 'assistant', content: '', time: Date.now() },
-    body: null,
   }
   const userMessage = { role: 'user', content, time: Date.now(), format: draftFormats.get(buddy.id) }
   buddy.messages.push(userMessage)
@@ -533,20 +561,14 @@ $('#compose').addEventListener('submit', async (event) => {
       throw new Error(error || 'Ollama returned HTTP ' + response.status + '.')
     }
     let buffer = ''
+    let rawReply = ''
     let done = false
     const consume = (line) => {
       if (!line.trim()) return
       const chunk = JSON.parse(line)
       if (chunk.error) throw new Error(chunk.error)
       if (chunk.done) done = true
-      if (chunk.message?.content) {
-        job.reply.content += chunk.message.content
-        if (state.selected === buddy.id) {
-          const nearBottom = transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 32
-          job.body.textContent = job.reply.content
-          if (nearBottom) scrollToLatest()
-        }
-      }
+      if (chunk.message?.content) rawReply += chunk.message.content
     }
     for await (const chunk of response.body.pipeThrough(new TextDecoderStream())) {
       buffer += chunk
@@ -556,6 +578,8 @@ $('#compose').addEventListener('submit', async (event) => {
     }
     consume(buffer)
     if (!done) throw new Error('Ollama ended the response early.')
+    // Wait for the closing marker before displaying text that might be reasoning.
+    job.reply.content = finalReply(rawReply)
     if (!job.reply.content.trim()) throw new Error('Ollama returned an empty reply.')
   } catch (error) {
     if (state.buddies.includes(buddy)) {

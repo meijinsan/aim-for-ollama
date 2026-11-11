@@ -35,4 +35,4 @@ For a buddy created with OpenAI in an older build, open **Edit Buddy** and selec
 
 ## Verify changes
 
-Run `node --check server.js` and `node --check public/app.js`. With the app running, check that the connection indicator finds Ollama, send a message and watch the response stream, then reload and confirm that the conversation persists. Add a second buddy with a different system prompt and check that its history is separate.
+Run `node --check server.js` and `node --check public/app.js`. With the app running, check that the connection indicator finds Ollama, send a message and verify that only the final reply appears, then reload and confirm that the conversation persists. Add a second buddy with a different system prompt and check that its history is separate.
