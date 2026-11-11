@@ -8,6 +8,7 @@ const assets = {
   '/': ['index.html', 'text/html'],
   '/style.css': ['style.css', 'text/css'],
   '/app.js': ['app.js', 'text/javascript'],
+  '/emoji.json': ['emoji.json', 'application/json'],
 }
 
 export function createAimServer() {

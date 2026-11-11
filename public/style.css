@@ -133,7 +133,7 @@ button:disabled { cursor: default; opacity: .48; }
 .composer { padding: 5px; }
 .notice { margin: 0 0 7px; color: #8a3020; font-size: 12px; }
 .notice:empty { display: none; }
-textarea, input { display: block; width: 100%; border: 1px solid #aeb9cb; background: #fff; color: #182747; padding: 8px; }
+textarea, input, select { display: block; width: 100%; border: 1px solid #aeb9cb; background: #fff; color: #182747; padding: 8px; font: inherit; }
 textarea { resize: vertical; }
 .write-panel { min-width: 0; }
 .format-bar { display: flex; gap: 1px; align-items: center; padding: 1px 4px; border: 1px solid #a5a08d; box-shadow: inset 1px 1px white; }
@@ -155,7 +155,14 @@ dialog { padding: 0; width: min(450px, calc(100% - 30px)); color: inherit; }
 dialog::backdrop { background: #08132a9c; }
 .editor-body { padding: 15px; }
 .editor-body label { display: block; font-weight: bold; margin-bottom: 13px; }
+.editor-body label[hidden] { display: none; }
 .editor-body label > * { margin-top: 5px; font-weight: normal; }
+.emoji-body { display: grid; gap: 7px; padding: 9px; }
+.emoji-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); align-content: start; gap: 3px; height: min(250px, 40dvh); overflow: auto; padding: 5px; background: white; border: 2px inset #d9d5c5; }
+.emoji-results button { min-height: 34px; padding: 1px; border: 1px solid transparent; background: transparent; font: 20px "Segoe UI Emoji", sans-serif; }
+.emoji-results button:hover, .emoji-results button:focus-visible { border-color: #7d9fe3; background: #e3edff; outline-offset: -2px; }
+#emoji-status { margin: 0; font-size: 12px; }
+#emoji-status:empty { display: none; }
 .remove { margin-right: auto; color: #8a3020; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 @media (max-width: 660px) {

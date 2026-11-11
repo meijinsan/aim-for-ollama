@@ -25,6 +25,13 @@ const editor = $('#editor')
 const buddyForm = $('#buddy-form')
 const active = () => state.buddies.find(({ id }) => id === state.selected)
 const chatWindow = $('.chat')
+const customModelOption = ':'
+const emojiPicker = $('#emoji-picker')
+const emojiSearch = $('#emoji-search')
+const emojiCategory = $('#emoji-category')
+const emojiResults = $('#emoji-results')
+const emojiStatus = $('#emoji-status')
+let emojiCatalog
 
 const portraits = {
   bot: [
@@ -127,8 +134,7 @@ function renderComposer() {
   $('#send').disabled = !buddy || busy || !connected || !messageBox.value.trim()
   $('#stop').hidden = !busy
   messageBox.disabled = !buddy
-  $('#smile').disabled = !buddy
-  $('#wink').disabled = !buddy
+  $('#emoji').disabled = !buddy
 }
 
 function appendMessage(buddy, message) {
@@ -205,9 +211,34 @@ async function connect() {
     $('#status-models').textContent = connected
       ? models.length + (models.length === 1 ? ' model available' : ' models available')
       : 'Local Ollama · port 11434 by default'
-    $('#installed-models').replaceChildren(...models.map((model) => new Option(model, model)))
+    if (editor.open) {
+      const { model, customModel } = buddyForm.elements
+      setModelOptions(model.value === customModelOption ? customModel.value : model.value,
+        model.value === customModelOption)
+    }
     render()
   }
+}
+
+function syncCustomModel() {
+  const { model, customModel } = buddyForm.elements
+  const manual = model.value === customModelOption
+  $('#custom-model').hidden = !manual
+  customModel.disabled = !manual
+  customModel.required = manual
+}
+
+function setModelOptions(selected, manual = false) {
+  const { model, customModel } = buddyForm.elements
+  const options = models.map((name) => new Option(name, name))
+  if (!manual && selected && !models.includes(selected)) {
+    options.push(new Option(selected + ' (unavailable)', selected))
+  }
+  model.replaceChildren(...options, new Option('Enter model name…', customModelOption))
+  model.value = manual ? customModelOption : selected || models[0] || customModelOption
+  customModel.value = manual ? selected : ''
+  customModel.setCustomValidity('')
+  syncCustomModel()
 }
 
 function openEditor(buddy) {
@@ -215,7 +246,7 @@ function openEditor(buddy) {
   $('#editor-title').textContent = buddy ? 'Edit Buddy' : 'Add Buddy'
   $('#remove').hidden = !buddy
   buddyForm.elements.name.value = buddy?.name || ''
-  buddyForm.elements.model.value = buddy?.model || models[0] || ''
+  setModelOptions(buddy?.model)
   buddyForm.elements.prompt.value = buddy?.prompt || ''
   editor.showModal()
 }
@@ -231,15 +262,73 @@ $('#maximize').addEventListener('click', (event) => {
 $('#text-size').addEventListener('click', (event) => {
   event.currentTarget.setAttribute('aria-pressed', chatWindow.classList.toggle('large-text'))
 })
-for (const [id, face] of [['#smile', '☺'], ['#wink', '😉']]) {
-  $(id).addEventListener('click', () => {
-    const { selectionStart, selectionEnd, value, maxLength } = messageBox
-    if (value.length - (selectionEnd - selectionStart) + face.length > maxLength) return
-    messageBox.setRangeText(face, selectionStart, selectionEnd, 'end')
-    messageBox.dispatchEvent(new Event('input'))
-    messageBox.focus()
-  })
+function renderEmoji() {
+  if (!emojiCatalog) return
+  const query = emojiSearch.value.trim().toLowerCase()
+  const entries = query
+    ? Object.values(emojiCatalog).flat().filter(([symbol, name]) => symbol === query || name.toLowerCase().includes(query))
+    : emojiCatalog[emojiCategory.value]
+  emojiResults.replaceChildren(...entries.map(([symbol, name], index) => {
+    const button = node('button', symbol)
+    button.type = 'button'
+    button.tabIndex = index === 0 ? 0 : -1
+    button.title = name
+    button.setAttribute('aria-label', name)
+    return button
+  }))
+  emojiResults.scrollTop = 0
+  emojiStatus.textContent = entries.length ? '' : 'No matching emoji.'
 }
+
+$('#emoji').addEventListener('click', async () => {
+  emojiSearch.value = ''
+  emojiPicker.showModal()
+  if (!emojiCatalog) {
+    emojiStatus.textContent = 'Loading emoji…'
+    try {
+      const response = await fetch('/emoji.json')
+      if (!response.ok) throw new Error('Emoji catalog unavailable')
+      emojiCatalog = await response.json()
+      emojiCategory.replaceChildren(...Object.keys(emojiCatalog).map((name) => new Option(name, name)))
+    } catch {
+      emojiStatus.textContent = 'Could not load emoji. Close the picker and try again.'
+      return
+    }
+  }
+  renderEmoji()
+})
+$('#close-emoji').addEventListener('click', () => emojiPicker.close())
+emojiSearch.addEventListener('input', renderEmoji)
+emojiCategory.addEventListener('change', () => {
+  emojiSearch.value = ''
+  renderEmoji()
+})
+emojiResults.addEventListener('keydown', (event) => {
+  if (!event.target.matches('button')) return
+  const columns = getComputedStyle(emojiResults).gridTemplateColumns.split(' ').length
+  const offset = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -columns, ArrowDown: columns }[event.key]
+  if (!offset) return
+  event.preventDefault()
+  const index = Array.from(emojiResults.children).indexOf(event.target)
+  const next = emojiResults.children[index + offset]
+  if (!next) return
+  event.target.tabIndex = -1
+  next.tabIndex = 0
+  next.focus()
+})
+emojiResults.addEventListener('click', (event) => {
+  if (!event.target.matches('button')) return
+  const face = event.target.textContent
+  const { selectionStart, selectionEnd, value, maxLength } = messageBox
+  if (value.length - (selectionEnd - selectionStart) + face.length > maxLength) {
+    emojiStatus.textContent = 'The message is too long to add this emoji.'
+    return
+  }
+  messageBox.setRangeText(face, selectionStart, selectionEnd, 'end')
+  messageBox.dispatchEvent(new Event('input'))
+  emojiPicker.close()
+  messageBox.focus()
+})
 $('#add').addEventListener('click', () => openEditor())
 $('#edit').addEventListener('click', () => openEditor(active()))
 $('#cancel').addEventListener('click', () => editor.close())
@@ -257,16 +346,18 @@ $('#remove').addEventListener('click', () => {
 })
 
 buddyForm.addEventListener('input', (event) => event.target.setCustomValidity?.(''))
+buddyForm.elements.model.addEventListener('change', syncCustomModel)
 buddyForm.addEventListener('submit', (event) => {
   event.preventDefault()
-  const { name, model, prompt } = buddyForm.elements
-  for (const field of [name, model]) {
+  const { name, model, customModel, prompt } = buddyForm.elements
+  const modelField = model.value === customModelOption ? customModel : model
+  for (const field of [name, modelField]) {
     if (field.value.trim()) continue
     field.setCustomValidity('Enter a value.')
     field.reportValidity()
     return
   }
-  const settings = { name: name.value.trim(), model: model.value.trim(), prompt: prompt.value.trim() }
+  const settings = { name: name.value.trim(), model: modelField.value.trim(), prompt: prompt.value.trim() }
   const buddy = state.buddies.find(({ id }) => id === editing)
   if (buddy) Object.assign(buddy, settings)
   else {

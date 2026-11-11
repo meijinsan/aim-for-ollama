@@ -42,8 +42,7 @@
             <div class="write-panel">
               <div class="format-bar" aria-label="Message controls">
                 <button id="text-size" type="button" aria-label="Larger chat text" aria-pressed="false"><strong>A</strong><sup>↑</sup></button>
-                <button id="smile" type="button" title="Insert smiley" aria-label="Insert smiley">☻</button>
-                <button id="wink" type="button" title="Insert wink" aria-label="Insert wink">😉</button>
+                <button id="emoji" type="button" title="Choose emoji" aria-label="Choose emoji" aria-haspopup="dialog">🙂</button>
               </div>
               <label class="sr-only" for="message">Message</label>
               <textarea id="message" rows="3" maxlength="16000" placeholder="Type an instant message…"></textarea>
@@ -59,13 +58,22 @@
     </section>
   </main>
   <footer class="statusbar"><span>ϟ &nbsp; AIM for Ollama</span><span id="status-models"></span></footer>
+  <dialog id="emoji-picker" aria-labelledby="emoji-title">
+    <div class="titlebar"><span id="emoji-title">Choose an Emoji</span><button id="close-emoji" class="window-button" type="button" aria-label="Close emoji picker">×</button></div>
+    <div class="emoji-body">
+      <input id="emoji-search" type="search" aria-label="Search emoji" placeholder="Search emoji…" autofocus>
+      <select id="emoji-category" aria-label="Emoji category"></select>
+      <div id="emoji-results" class="emoji-results" aria-label="Emoji results"></div>
+      <p id="emoji-status" role="status"></p>
+    </div>
+  </dialog>
   <dialog id="editor">
     <form id="buddy-form">
       <div class="titlebar" id="editor-title">Add Buddy</div>
       <div class="editor-body">
         <label>Screen name<input name="name" required maxlength="36" placeholder="e.g. StudyBuddy"></label>
-        <label>Ollama model<input name="model" list="installed-models" required maxlength="128" placeholder="Select or type a model name"></label>
-        <datalist id="installed-models"></datalist>
+        <label>Ollama model<select name="model" required></select></label>
+        <label id="custom-model" hidden>Model name<input name="customModel" maxlength="128" placeholder="Type a model name" disabled></label>
         <label>System prompt<textarea name="prompt" rows="5" maxlength="16000" placeholder="Describe how this buddy should respond."></textarea></label>
         <div class="editor-actions">
           <button id="remove" class="classic remove" type="button">Remove Buddy</button>

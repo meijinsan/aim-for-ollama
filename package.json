@@ -14,7 +14,7 @@
     "appId": "local.aim.ollama",
     "productName": "AIM for Ollama",
     "artifactName": "AIM-for-Ollama.exe",
-    "files": ["desktop.js", "server.js", "ollama.js", "public/**/*"],
+    "files": ["desktop.js", "server.js", "ollama.js", "public/**/*", "UNICODE-LICENSE.txt"],
     "win": { "signExecutable": false }
   },
   "devDependencies": {
