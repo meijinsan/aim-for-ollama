@@ -25,7 +25,7 @@ async function open() {
     const { hostname, pathname } = new URL(request.url)
     if (hostname !== 'desktop') return new Response(null, { status: 404 })
     if (pathname === '/api/tags') await ollamaReady
-    const headers = { Origin: backend }
+    const headers = {}
     const type = request.headers.get('content-type')
     if (type) headers['Content-Type'] = type
     return fetch(backend + pathname, {

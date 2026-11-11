@@ -92,15 +92,13 @@
       <div class="titlebar" id="editor-title">Add Buddy</div>
       <div class="editor-body">
         <label>Screen name<input name="name" required maxlength="36" placeholder="e.g. StudyBuddy"></label>
-        <label>Provider<select name="provider"><option value="ollama">Ollama</option><option value="openai">OpenAI</option></select></label>
-        <p id="openai-help" hidden>OpenAI buddies send their conversation to OpenAI and use your API quota.</p>
-        <label><span id="model-label">Ollama model</span><select name="model" required></select></label>
-        <p id="model-list-status" role="status" hidden></p>
+        <p id="legacy-provider-notice" hidden>Choose an Ollama model to use this buddy again.</p>
+        <label>Ollama model<select name="model" required></select></label>
         <label id="custom-model" hidden>Model name<input name="customModel" maxlength="128" placeholder="Type a model name" disabled></label>
         <fieldset class="buddy-traits">
           <legend>Personality</legend>
-          <label>Gender presentation<select name="gender"><option value="">Unspecified</option><option value="male">Male</option><option value="female">Female</option><option value="nonbinary">Nonbinary</option></select></label>
-          <label>Mood<select name="mood"><option value="">Default</option><option value="cheerful">Cheerful</option><option value="calm">Calm</option><option value="playful">Playful</option><option value="serious">Serious</option><option value="dry">Dry</option></select></label>
+          <label>Gender<select name="gender"><option value="">Select gender</option><option value="male">Male</option><option value="female">Female</option></select></label>
+          <label>Mood<select name="mood"><option value="">Default</option><option value="cheerful">Cheerful</option><option value="calm">Calm</option><option value="playful">Playful</option><option value="serious">Serious</option><option value="dry">Dry</option><option value="sad">Sad</option><option value="moody">Moody</option><option value="rude">Rude</option></select></label>
           <label>Conversation style<select name="style"><option value="">Default</option><option value="casual">Casual</option><option value="concise">Concise</option><option value="detailed">Detailed</option><option value="formal">Formal</option></select></label>
         </fieldset>
         <label>System prompt<textarea name="prompt" rows="5" maxlength="16000" placeholder="Describe how this buddy should respond."></textarea></label>

@@ -160,12 +160,12 @@ dialog { padding: 0; width: min(450px, calc(100% - 30px)); color: inherit; }
 dialog::backdrop { background: #08132a9c; }
 .editor-body { padding: 15px; }
 #editor .editor-body { max-height: calc(100dvh - 78px); overflow-y: auto; }
-.buddy-traits { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; min-width: 0; margin: 0 0 13px; }
-.buddy-traits label { margin-bottom: 0; }
-#model-list-status { margin: -7px 0 12px; font-size: 12px; }
 .editor-body label { display: block; font-weight: bold; margin-bottom: 13px; }
 .editor-body label[hidden] { display: none; }
 .editor-body label > * { margin-top: 5px; font-weight: normal; }
+.buddy-traits { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; min-width: 0; margin: 0 0 13px; }
+.buddy-traits label { display: flex; flex-direction: column; justify-content: space-between; gap: 5px; margin-bottom: 0; }
+.buddy-traits label > select { margin-top: 0; }
 .emoji-body { display: grid; gap: 7px; padding: 9px; }
 .emoji-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); align-content: start; gap: 3px; height: min(250px, 40dvh); overflow: auto; padding: 5px; background: white; border: 2px inset #d9d5c5; }
 .emoji-results button { min-height: 34px; padding: 1px; border: 1px solid transparent; background: transparent; font: 20px "Segoe UI Emoji", sans-serif; }

@@ -1,6 +1,6 @@
 # AIM for Ollama
 
-A local, AIM-inspired instant messenger for chatting with Ollama and OpenAI models. Each buddy has a screen name, provider, model, optional system prompt, and its own conversation history.
+A local, AIM-inspired instant messenger for chatting with Ollama models. Each buddy has a screen name, model, optional system prompt, and its own conversation history.
 
 ## Windows desktop app
 
@@ -18,17 +18,15 @@ To build the portable Windows x64 executable from source, run `npm.cmd ci` and t
 
 The app defaults to Ollama at `http://127.0.0.1:11434`. Set the `OLLAMA_URL` environment variable before starting the app to use another Ollama instance. Set `PORT` to change the app's port.
 
-## OpenAI buddies
+## Buddy personality
 
-In **Add Buddy** or **Edit Buddy**, choose **OpenAI** as the provider and select a GPT chat model listed for your API key. You can also enter a model ID manually. Ollama buddies use the local model list. Each buddy routes messages to its selected provider.
+In **Add Buddy** or **Edit Buddy**, use **Gender**, **Mood**, and **Conversation style** to set optional defaults alongside the system prompt.
 
-The **Personality** menus let you set gender presentation, mood, and conversation style for either provider. AIM includes selected traits as defaults alongside the buddy's system prompt.
-
-Create an [OpenAI API key](https://platform.openai.com/api-keys) and add a Windows user environment variable named `OPENAI_API_KEY` with the key as its value. In the Start menu, search for **Edit environment variables for your account**, then choose **New** under **User variables**. Close and reopen AIM after saving it. The app reads the key in its backend and keeps it out of buddy profiles. OpenAI receives the buddy's conversation and bills usage to your API project.
+For a buddy created with OpenAI in an older build, open **Edit Buddy** and select an Ollama model. Its chat history stays with the buddy.
 
 ## Project notes
 
-- `server.js` serves the interface, discovers Ollama models, and streams replies from the selected provider. `web.js` starts it on the browser port. The Electron desktop app uses a stable `aim://desktop/` origin backed by its own loopback server on an available port.
+- `server.js` serves the interface, discovers Ollama models, and streams replies. `web.js` starts it on the browser port. The Electron desktop app uses a stable `aim://desktop/` origin backed by its own loopback server on an available port.
 - `public/app.js` manages the buddy list, settings, model discovery, and conversations. Buddy settings and history are stored in browser local storage for the current app URL. An active draft stays available while switching buddies in the same session.
 - The chat window follows the Windows XP-era AIM layout. Pixel portraits are drawn on canvas from small color grids. The composer toolbar formats the whole outgoing message, inserts links, and opens an offline emoji picker. The model receives the message as plain text.
 - The emoji catalog uses the Unicode Emoji 17.0 test data and includes fully qualified emoji and standalone components. See [Unicode data](https://www.unicode.org/Public/17.0.0/emoji/emoji-test.txt) and [license](UNICODE-LICENSE.txt).

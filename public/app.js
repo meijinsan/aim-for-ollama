@@ -18,11 +18,7 @@ const draftFormats = new Map()
 const notices = new Map()
 let models = []
 let connected = false
-let openAIConfigured = false
-let openAIModels = []
-let modelListStatus = ''
-let loadingOpenAIModels = false
-const traitNames = { gender: 'Gender presentation', mood: 'Mood', style: 'Conversation style' }
+const traitNames = { gender: 'Gender', mood: 'Mood', style: 'Conversation style' }
 let editing = null
 let storageFailed = false
 const transcript = $('#messages')
@@ -119,14 +115,14 @@ function renderRoster() {
   $('#buddies').replaceChildren(...state.buddies.map((buddy) => {
     const selected = buddy.id === state.selected
     const openai = buddy.provider === 'openai'
-    const ready = openai ? openAIConfigured : models.includes(buddy.model)
+    const ready = !openai && models.includes(buddy.model)
     const row = node('button', '', 'buddy' + (selected ? ' active' : '') + (ready ? ' ready' : ''))
     row.type = 'button'
     row.setAttribute('aria-pressed', selected)
-    row.title = openai ? (ready ? 'OpenAI API key configured' : 'OpenAI API key required')
+    row.title = openai ? 'Choose an Ollama model in Edit Buddy'
       : (ready ? 'Model available' : 'Model unavailable')
     const label = node('span', '', 'buddy-text')
-    label.append(node('strong', buddy.name), node('small', openai ? 'OpenAI · ' + buddy.model : buddy.model))
+    label.append(node('strong', buddy.name), node('small', openai ? 'Ollama model required' : buddy.model))
     row.append(node('span', buddy.glyph, 'avatar'), label, node('span', '', 'dot'))
     row.addEventListener('click', () => {
       state.selected = buddy.id
@@ -142,8 +138,8 @@ function renderComposer() {
   const buddy = active()
   const busy = jobs.has(buddy?.id)
   const openai = buddy?.provider === 'openai'
-  const ready = openai ? openAIConfigured : connected
-  const offline = openai ? 'Set OPENAI_API_KEY and restart AIM to chat with this buddy.'
+  const ready = !openai && connected
+  const offline = openai ? 'Open Edit Buddy and choose an Ollama model.'
     : 'Start Ollama, then refresh the connection.'
   $('#notice').textContent = storageFailed ? 'Browser storage is unavailable. Changes may be lost after reload.'
     : notices.get(buddy?.id) || (buddy && !ready ? offline : '')
@@ -226,7 +222,7 @@ function renderTranscript() {
 function render() {
   const buddy = active()
   $('#chat-title').textContent = buddy ? buddy.name + ' : You - Instant Message' : 'Instant Message'
-  $('#model').textContent = buddy?.provider === 'openai' ? 'OpenAI · ' + buddy.model : buddy?.model || ''
+  $('#model').textContent = buddy?.provider === 'openai' ? 'Ollama model required' : buddy?.model || ''
   const accents = ['#eab43f', '#ee9474', '#72c995', '#79b4ef', '#d595dc']
   drawPortrait($('#avatar'), portraits.bot, accents[glyphs.indexOf(buddy?.glyph)] || accents[0])
   $('#edit').disabled = !buddy
@@ -242,7 +238,6 @@ async function connect() {
   const label = button.querySelector('span')
   button.disabled = true
   label.textContent = 'Checking Ollama…'
-  refreshOpenAI()
   try {
     const response = await fetch('/api/tags', { cache: 'no-store' })
     if (!response.ok) throw new Error('Connection failed')
@@ -269,76 +264,33 @@ async function connect() {
     $('#status-models').textContent = connected
       ? models.length + (models.length === 1 ? ' model available' : ' models available')
       : 'Local Ollama · port 11434 by default'
-    if (editor.open && buddyForm.elements.provider.value === 'ollama') {
-      updateModelOptions()
+    if (editor.open) {
+      const { model, customModel } = buddyForm.elements
+      const manual = model.value === customModelOption
+      setModelOptions(manual ? customModel.value : model.value, manual)
     }
     render()
   }
 }
 
-async function refreshOpenAI() {
-  try {
-    const response = await fetch('/api/openai/status', { cache: 'no-store' })
-    openAIConfigured = response.ok && (await response.json()).configured === true
-  } catch {
-    openAIConfigured = false
-  }
-  renderRoster()
-  renderComposer()
-}
-
-async function loadOpenAIModels() {
-  if (loadingOpenAIModels) return
-  loadingOpenAIModels = true
-  modelListStatus = 'Loading OpenAI models…'
-  renderModelStatus()
-  try {
-    const response = await fetch('/api/openai/models', { cache: 'no-store' })
-    const data = await response.json()
-    if (!response.ok) throw new Error(data.error)
-    openAIModels = data.models
-    modelListStatus = openAIModels.length ? '' : 'No GPT chat models listed. You can enter a model ID manually.'
-  } catch (error) {
-    modelListStatus = error.message || 'Could not load OpenAI models.'
-  } finally {
-    loadingOpenAIModels = false
-    if (editor.open && buddyForm.elements.provider.value === 'openai') updateModelOptions()
-  }
-}
-
-function renderModelStatus() {
-  const status = $('#model-list-status')
-  status.textContent = modelListStatus
-  status.hidden = buddyForm.elements.provider.value !== 'openai' || !modelListStatus
-}
-
-function updateModelOptions() {
-  const { model, customModel } = buddyForm.elements
-  const manual = model.value === customModelOption && Boolean(customModel.value)
-  setModelOptions(model.value === customModelOption ? customModel.value : model.value, manual)
-}
-
 function syncCustomModel() {
-  const { provider, model, customModel } = buddyForm.elements
-  const openai = provider.value === 'openai'
+  const { model, customModel } = buddyForm.elements
   const manual = model.value === customModelOption
-  $('#openai-help').hidden = !openai
-  $('#model-label').textContent = openai ? 'OpenAI model' : 'Ollama model'
-  renderModelStatus()
   $('#custom-model').hidden = !manual
   customModel.disabled = !manual
   customModel.required = manual
 }
 
 function setModelOptions(selected, manual = false) {
-  const { provider, model, customModel } = buddyForm.elements
-  const available = provider.value === 'openai' ? openAIModels : models
-  const options = available.map((name) => new Option(name, name))
-  if (!manual && selected && !available.includes(selected)) {
+  const { model, customModel } = buddyForm.elements
+  const placeholder = new Option('Select an Ollama model', '')
+  placeholder.disabled = true
+  const options = models.map((name) => new Option(name, name))
+  if (!manual && selected && !models.includes(selected)) {
     options.push(new Option(selected + ' (not listed)', selected))
   }
-  model.replaceChildren(...options, new Option('Enter model name…', customModelOption))
-  model.value = manual ? customModelOption : selected || available[0] || customModelOption
+  model.replaceChildren(placeholder, ...options, new Option('Enter model name…', customModelOption))
+  model.value = manual ? customModelOption : selected ?? models[0] ?? customModelOption
   customModel.value = manual ? selected : ''
   customModel.setCustomValidity('')
   syncCustomModel()
@@ -349,9 +301,9 @@ function openEditor(buddy) {
   $('#editor-title').textContent = buddy ? 'Edit Buddy' : 'Add Buddy'
   $('#remove').hidden = !buddy
   buddyForm.elements.name.value = buddy?.name || ''
-  const provider = buddy?.provider || 'ollama'
-  buddyForm.elements.provider.value = provider
-  setModelOptions(buddy?.model)
+  const needsModel = buddy?.provider === 'openai'
+  $('#legacy-provider-notice').hidden = !needsModel
+  setModelOptions(needsModel ? '' : buddy?.model)
   for (const trait of Object.keys(traitNames)) {
     const field = buddyForm.elements[trait]
     field.value = buddy?.traits?.[trait] || ''
@@ -359,7 +311,6 @@ function openEditor(buddy) {
   }
   buddyForm.elements.prompt.value = buddy?.prompt || ''
   editor.showModal()
-  if (provider === 'openai') loadOpenAIModels()
 }
 
 $('#connection').addEventListener('click', connect)
@@ -503,13 +454,9 @@ $('#remove').addEventListener('click', () => {
 
 buddyForm.addEventListener('input', (event) => event.target.setCustomValidity?.(''))
 buddyForm.elements.model.addEventListener('change', syncCustomModel)
-buddyForm.elements.provider.addEventListener('change', () => {
-  setModelOptions()
-  if (buddyForm.elements.provider.value === 'openai') loadOpenAIModels()
-})
 buddyForm.addEventListener('submit', (event) => {
   event.preventDefault()
-  const { name, provider, model, customModel, prompt } = buddyForm.elements
+  const { name, model, customModel, prompt } = buddyForm.elements
   const modelField = customModel.disabled ? model : customModel
   for (const field of [name, modelField]) {
     if (field.value.trim()) continue
@@ -518,10 +465,8 @@ buddyForm.addEventListener('submit', (event) => {
     return
   }
   const traits = Object.fromEntries(Object.keys(traitNames).map((trait) => [trait, buddyForm.elements[trait].value]))
-  const settings = { name: name.value.trim(), provider: provider.value, model: modelField.value.trim(), prompt: prompt.value.trim(), traits }
+  const settings = { name: name.value.trim(), provider: 'ollama', model: modelField.value.trim(), prompt: prompt.value.trim(), traits }
   const buddy = state.buddies.find(({ id }) => id === editing)
-  if (settings.provider === 'openai' && buddy?.provider !== 'openai' && buddy?.messages.length &&
-      !confirm('Future messages to this buddy will send its existing conversation to OpenAI. Switch provider?')) return
   if (buddy) Object.assign(buddy, settings)
   else {
     state.selected = crypto.randomUUID()
@@ -552,8 +497,7 @@ $('#compose').addEventListener('submit', async (event) => {
   event.preventDefault()
   const buddy = active()
   const content = messageBox.value.trim()
-  const openai = buddy?.provider === 'openai'
-  if (!buddy || !(openai ? openAIConfigured : connected) || !content || jobs.has(buddy.id)) return
+  if (!buddy || buddy.provider === 'openai' || !connected || !content || jobs.has(buddy.id)) return
 
   const job = {
     controller: new AbortController(),
@@ -576,7 +520,7 @@ $('#compose').addEventListener('submit', async (event) => {
     const personality = traits.length ? 'Portray this buddy with these defaults when consistent with the system prompt.\n' + traits.join('\n') : ''
     const instructions = [buddy.prompt, personality].filter(Boolean).join('\n\n')
     if (instructions) messages.unshift({ role: 'system', content: instructions })
-    const response = await fetch(openai ? '/api/openai/chat' : '/api/chat', {
+    const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: buddy.model, messages, stream: true }),
