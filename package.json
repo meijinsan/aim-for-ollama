@@ -1,7 +1,24 @@
 {
   "name": "aim-ollama",
   "version": "0.1.0",
+  "description": "A retro instant messenger for local Ollama models",
   "private": true,
   "type": "module",
-  "scripts": { "start": "node server.js" }
+  "main": "desktop.js",
+  "scripts": {
+    "start": "node web.js",
+    "desktop": "electron .",
+    "build:win": "electron-builder --win portable --x64 --publish never"
+  },
+  "build": {
+    "appId": "local.aim.ollama",
+    "productName": "AIM for Ollama",
+    "artifactName": "AIM-for-Ollama.exe",
+    "files": ["desktop.js", "server.js", "ollama.js", "public/**/*"],
+    "win": { "signExecutable": false }
+  },
+  "devDependencies": {
+    "electron": "45.3.0",
+    "electron-builder": "26.18.0"
+  }
 }

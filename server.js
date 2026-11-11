@@ -3,7 +3,6 @@ import { readFile } from 'node:fs/promises'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
-const port = Number(process.env.PORT || 3000)
 const ollama = process.env.OLLAMA_URL || 'http://127.0.0.1:11434'
 const assets = {
   '/': ['index.html', 'text/html'],
@@ -11,10 +10,15 @@ const assets = {
   '/app.js': ['app.js', 'text/javascript'],
 }
 
-createServer(async (req, res) => {
+export function createAimServer() {
+  return createServer(handleRequest)
+}
+
+async function handleRequest(req, res) {
   const origin = 'http://' + req.headers.host
   const path = req.url.split('?')[0]
   const asset = Object.hasOwn(assets, path) && assets[path]
+  const port = req.socket.localPort
   if (!['127.0.0.1:' + port, 'localhost:' + port].includes(req.headers.host)) {
     res.writeHead(403).end()
     return
@@ -75,6 +79,4 @@ createServer(async (req, res) => {
     res.writeHead(502, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ error: 'Could not reach Ollama. Start Ollama and try again.' }))
   }
-}).listen(port, '127.0.0.1', () => {
-  console.log('AIM for Ollama is listening at http://127.0.0.1:' + port)
-})
+}

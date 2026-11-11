@@ -2,7 +2,15 @@
 
 A local, AIM-inspired instant messenger for chatting with Ollama models. Each buddy has a screen name, model, optional system prompt, and its own conversation history.
 
-## Run locally
+## Windows desktop app
+
+Double-click `dist/AIM-for-Ollama.exe`. Ollama must already be installed. AIM checks for the local Ollama server and starts `ollama serve` in the background if it is stopped. Ollama can stay running after AIM closes. Set `OLLAMA_URL` to use a custom endpoint. AIM only starts the default local Ollama server.
+
+The desktop app stores its buddy list and conversations in its own Windows app profile. If you used the browser version, your existing chats are still in that browser.
+
+To build the portable Windows x64 executable from source, run `npm.cmd ci` and then `npm.cmd run build:win`. The executable is unsigned. For desktop development, run `npm.cmd run desktop`.
+
+## Run in a browser
 
 1. Install Node.js 22 or newer and start Ollama with at least one installed chat model. Run `ollama list` to see your models.
 2. Run `npm start` from this directory.
@@ -12,7 +20,7 @@ The app defaults to Ollama at `http://127.0.0.1:11434`. Set the `OLLAMA_URL` env
 
 ## Project notes
 
-- `server.js` serves the interface and proxies model discovery and streamed chat to Ollama. The app listens on loopback and has no npm dependencies.
+- `server.js` serves the interface and proxies model discovery and streamed chat to Ollama. `web.js` starts it on the browser port. The Electron desktop app uses a stable `aim://desktop/` origin backed by its own loopback server on an available port.
 - `public/app.js` manages the buddy list, settings, model discovery, and conversations. Buddy settings and history are stored in browser local storage for the current app URL. An active draft stays available while switching buddies in the same session.
 - The chat window follows the Windows XP-era AIM layout. Pixel portraits are drawn on canvas from small color grids. The composer toolbar inserts emoticons and adjusts the local display size.
 - A buddy is an Ollama chat profile. Ollama Modelfiles can provide model-level defaults. External tools and multi-agent orchestration are outside the current implementation.
