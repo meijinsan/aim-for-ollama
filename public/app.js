@@ -45,6 +45,10 @@ const jobs = new Map()
 const drafts = new Map()
 const draftFormats = new Map()
 const notices = new Map()
+const attemptedCheckIns = new WeakMap()
+const checkInDelay = 3 * 60 * 1000
+let idleBuddy
+let idleSince
 let models = []
 let connected = false
 let clawConfigured = false
@@ -319,6 +323,7 @@ async function refreshClaw() {
 function syncCustomModel() {
   const { model, customModel, provider, agent } = buddyForm.elements
   const claw = provider.value === 'openclaw'
+  $('#proactive-option').hidden = claw
   const manual = !claw && model.value === customModelOption
   $('#ollama-model').hidden = claw
   $('#openclaw-agent').hidden = !claw
@@ -351,6 +356,7 @@ function openEditor(buddy) {
   $('#editor-title').textContent = buddy ? 'Edit Buddy' : 'Add Buddy'
   $('#remove').hidden = !buddy
   buddyForm.elements.name.value = buddy?.name || ''
+  buddyForm.elements.proactive.checked = buddy?.proactive === true
   const needsModel = buddy?.provider === 'openai'
   const claw = buddy?.provider === 'openclaw'
   buddyForm.elements.provider.value = claw ? 'openclaw' : 'ollama'
@@ -510,7 +516,7 @@ buddyForm.elements.model.addEventListener('change', syncCustomModel)
 buddyForm.elements.provider.addEventListener('change', syncCustomModel)
 buddyForm.addEventListener('submit', (event) => {
   event.preventDefault()
-  const { name, model, customModel, prompt, provider, agent } = buddyForm.elements
+  const { name, model, customModel, prompt, provider, agent, proactive } = buddyForm.elements
   const modelField = provider.value === 'openclaw' ? agent : customModel.disabled ? model : customModel
   for (const field of [name, modelField]) {
     if (field.value.trim()) continue
@@ -519,11 +525,15 @@ buddyForm.addEventListener('submit', (event) => {
     return
   }
   const traits = Object.fromEntries(Object.keys(traitNames).map((trait) => [trait, buddyForm.elements[trait].value]))
-  const settings = { name: name.value.trim(), provider: provider.value, model: modelField.value.trim(), prompt: prompt.value.trim(), traits }
+  const settings = { name: name.value.trim(), provider: provider.value, model: modelField.value.trim(), prompt: prompt.value.trim(), traits,
+    proactive: provider.value === 'ollama' && proactive.checked }
   const buddy = state.buddies.find(({ id }) => id === editing)
   if (settings.provider === 'openclaw' && buddy && buddy.provider !== 'openclaw' && buddy.messages.length &&
       !confirm('Future messages will share this buddy’s chat history with the selected OpenClaw agent. Switch buddy type?')) return
-  if (buddy) Object.assign(buddy, settings)
+  if (buddy) {
+    attemptedCheckIns.delete(buddy)
+    Object.assign(buddy, settings)
+  }
   else {
     state.selected = crypto.randomUUID()
     state.buddies.push({
@@ -538,6 +548,7 @@ buddyForm.addEventListener('submit', (event) => {
 })
 
 messageBox.addEventListener('input', () => {
+  idleBuddy = undefined
   if (active()) drafts.set(state.selected, messageBox.value)
   renderComposer()
 })
@@ -549,21 +560,49 @@ messageBox.addEventListener('keydown', (event) => {
 })
 $('#stop').addEventListener('click', () => jobs.get(state.selected)?.controller.abort())
 
-$('#compose').addEventListener('submit', async (event) => {
+$('#compose').addEventListener('submit', (event) => {
   event.preventDefault()
   const buddy = active()
   const content = messageBox.value.trim()
+  if (buddy && content) void requestReply(buddy, content)
+})
+
+function checkForIdleChat() {
+  const buddy = active()
+  if (!buddy?.proactive || buddy.provider !== 'ollama' || !connected || document.hidden ||
+      document.querySelector('dialog[open]') || messageBox.value.trim() || jobs.has(buddy.id)) {
+    idleBuddy = undefined
+    return
+  }
+  const now = Date.now()
+  if (idleBuddy !== buddy) {
+    idleBuddy = buddy
+    idleSince = now
+  }
+  const lastMessage = buddy.messages.at(-1) || null
+  if (lastMessage?.checkIn || attemptedCheckIns.get(buddy) === lastMessage) return
+  if (lastMessage && now - idleSince < checkInDelay) return
+  attemptedCheckIns.set(buddy, lastMessage)
+  void requestReply(buddy)
+}
+
+async function requestReply(buddy, content) {
   const claw = buddy?.provider === 'openclaw'
-  if (!buddy || buddy.provider === 'openai' || !(claw ? clawConfigured : connected) || !content || jobs.has(buddy.id)) return
+  if (buddy.provider === 'openai' || !(claw ? clawConfigured : connected) || jobs.has(buddy.id)) return
+  idleBuddy = undefined
 
   const job = {
     controller: new AbortController(),
     reply: { role: 'assistant', content: '', time: Date.now() },
   }
-  const userMessage = { role: 'user', content, time: Date.now(), format: draftFormats.get(buddy.id) }
-  buddy.messages.push(userMessage)
-  drafts.delete(buddy.id)
-  draftFormats.delete(buddy.id)
+  const userMessage = content ? { role: 'user', content, time: Date.now(), format: draftFormats.get(buddy.id) } : null
+  if (userMessage) {
+    buddy.messages.push(userMessage)
+    drafts.delete(buddy.id)
+    draftFormats.delete(buddy.id)
+  } else {
+    job.reply.checkIn = true
+  }
   notices.delete(buddy.id)
   jobs.set(buddy.id, job)
   save()
@@ -571,6 +610,12 @@ $('#compose').addEventListener('submit', async (event) => {
 
   try {
     const messages = buddy.messages.map(({ role, content }) => ({ role, content }))
+    if (!userMessage) messages.push({
+      role: 'user',
+      content: buddy.messages.length
+        ? 'Write one short, natural follow-up that fits our conversation. This is an app cue, so do not mention it.'
+        : 'Start the conversation with one short, natural greeting in your own voice. This is an app cue, so do not mention it.',
+    })
     const traits = Object.entries(traitNames).filter(([trait]) => buddy.traits?.[trait])
       .map(([trait, label]) => label + ': ' + buddy.traits[trait])
     const personality = traits.length ? 'Portray this buddy with these defaults when consistent with the system prompt.\n' + traits.join('\n') : ''
@@ -612,7 +657,7 @@ $('#compose').addEventListener('submit', async (event) => {
   } catch (error) {
     if (state.buddies.includes(buddy)) {
       notices.set(buddy.id, job.controller.signal.aborted ? 'Reply stopped.' : error.message)
-      if (!job.reply.content.trim()) {
+      if (userMessage && !job.reply.content.trim()) {
         buddy.messages.pop()
         if (!drafts.get(buddy.id)) {
           drafts.set(buddy.id, content)
@@ -626,8 +671,9 @@ $('#compose').addEventListener('submit', async (event) => {
     save()
     if (state.selected === buddy.id) render()
   }
-})
+}
 
 drawPortrait($('#user-avatar'), portraits.user)
 render()
 connect()
+setInterval(checkForIdleChat, 5000)
