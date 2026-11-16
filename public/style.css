@@ -129,6 +129,7 @@ button:disabled { cursor: default; opacity: .48; }
 .entry strong { color: #c00; font-family: Georgia, serif; }
 .entry.assistant strong { color: #0000cb; }
 .entry time { margin-left: 8px; font-size: 10px; color: #676767; }
+.delivery-note { color: #8a301b; font-size: 11px; }
 .composer { padding: 5px; }
 .notice { margin: 0 0 7px; color: #8a3020; font-size: 12px; }
 .notice:empty { display: none; }

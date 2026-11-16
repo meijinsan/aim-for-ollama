@@ -42,6 +42,7 @@ function restore() {
 
 const state = restore()
 const jobs = new Map()
+const queuedMessages = new Map()
 const drafts = new Map()
 const draftFormats = new Map()
 const notices = new Map()
@@ -176,12 +177,20 @@ function renderComposer() {
   const ready = claw ? clawConfigured : !openai && connected
   const offline = openai ? 'Open Edit Buddy and choose an Ollama model.'
     : claw ? 'Set OPENCLAW_GATEWAY_TOKEN and restart AIM.' : 'Start Ollama, then refresh the connection.'
-  $('#notice').textContent = storageFailed ? 'Browser storage is unavailable. Changes may be lost after reload.'
+  const queued = queuedMessages.get(buddy?.id)?.length || 0
+  const queueStatus = queued ? queued + (queued === 1 ? ' message queued.' : ' messages queued.') : ''
+  const notice = storageFailed ? 'Browser storage is unavailable. Changes may be lost after reload.'
     : notices.get(buddy?.id) || (buddy && !ready ? offline : '')
-  $('#send').disabled = !buddy || busy || !ready || !messageBox.value.trim()
+  $('#notice').textContent = [notice, queueStatus].filter(Boolean).join(' ')
+  $('#send').disabled = !buddy || (!ready && !busy) || !messageBox.value.trim()
   $('#stop').hidden = !busy
   messageBox.disabled = !buddy
   for (const control of formatBar.querySelectorAll('button, input, select')) control.disabled = !buddy
+}
+
+function canSendTo(buddy) {
+  if (buddy.provider === 'openclaw') return clawConfigured
+  return buddy.provider !== 'openai' && connected
 }
 
 function applyMessageFormat(element, format = {}) {
@@ -231,6 +240,7 @@ function appendMessage(buddy, message) {
   }
   const sender = message.role === 'user' ? 'You' : buddy.name
   row.append(node('strong', sender + ': '), body, time)
+  if (message.deliveryNote) row.append(node('div', message.deliveryNote, 'delivery-note'))
   transcript.append(row)
   return body
 }
@@ -501,6 +511,7 @@ $('#remove').addEventListener('click', () => {
   const buddy = state.buddies.find(({ id }) => id === editing)
   if (!buddy || !confirm('Remove ' + buddy.name + ' and its conversation history?')) return
   jobs.get(buddy.id)?.controller.abort()
+  queuedMessages.delete(buddy.id)
   state.buddies = state.buddies.filter(({ id }) => id !== editing)
   drafts.delete(editing)
   draftFormats.delete(editing)
@@ -564,7 +575,21 @@ $('#compose').addEventListener('submit', (event) => {
   event.preventDefault()
   const buddy = active()
   const content = messageBox.value.trim()
-  if (buddy && content) void requestReply(buddy, content)
+  if (!buddy || !content || $('#send').disabled) return
+  const message = { role: 'user', content, time: Date.now(), format: draftFormats.get(buddy.id) }
+  if (jobs.has(buddy.id)) {
+    const queue = queuedMessages.get(buddy.id) || []
+    queue.push({ message, provider: buddy.provider, model: buddy.model })
+    queuedMessages.set(buddy.id, queue)
+    drafts.delete(buddy.id)
+    draftFormats.delete(buddy.id)
+    render()
+  } else {
+    drafts.delete(buddy.id)
+    draftFormats.delete(buddy.id)
+    void requestReply(buddy, message)
+  }
+  messageBox.focus()
 })
 
 function checkForIdleChat() {
@@ -586,30 +611,28 @@ function checkForIdleChat() {
   void requestReply(buddy)
 }
 
-async function requestReply(buddy, content) {
+async function requestReply(buddy, userMessage, fromQueue = false) {
   const claw = buddy?.provider === 'openclaw'
-  if (buddy.provider === 'openai' || !(claw ? clawConfigured : connected) || jobs.has(buddy.id)) return
+  if (!canSendTo(buddy) || jobs.has(buddy.id)) return
   idleBuddy = undefined
 
   const job = {
     controller: new AbortController(),
     reply: { role: 'assistant', content: '', time: Date.now() },
   }
-  const userMessage = content ? { role: 'user', content, time: Date.now(), format: draftFormats.get(buddy.id) } : null
   if (userMessage) {
     buddy.messages.push(userMessage)
-    drafts.delete(buddy.id)
-    draftFormats.delete(buddy.id)
   } else {
     job.reply.checkIn = true
   }
   notices.delete(buddy.id)
   jobs.set(buddy.id, job)
   save()
-  render()
+  if (state.selected === buddy.id) render()
 
   try {
-    const messages = buddy.messages.map(({ role, content }) => ({ role, content }))
+    const messages = buddy.messages.filter(({ deliveryNote }) => !deliveryNote)
+      .map(({ role, content }) => ({ role, content }))
     if (!userMessage) messages.push({
       role: 'user',
       content: buddy.messages.length
@@ -658,10 +681,12 @@ async function requestReply(buddy, content) {
     if (state.buddies.includes(buddy)) {
       notices.set(buddy.id, job.controller.signal.aborted ? 'Reply stopped.' : error.message)
       if (userMessage && !job.reply.content.trim()) {
-        buddy.messages.pop()
-        if (!drafts.get(buddy.id)) {
-          drafts.set(buddy.id, content)
+        if (!fromQueue && !drafts.get(buddy.id)) {
+          buddy.messages.pop()
+          drafts.set(buddy.id, userMessage.content)
           if (!draftFormats.has(buddy.id) && userMessage.format) draftFormats.set(buddy.id, userMessage.format)
+        } else {
+          userMessage.deliveryNote = job.controller.signal.aborted ? 'Reply stopped.' : 'No reply received.'
         }
       }
     }
@@ -670,6 +695,21 @@ async function requestReply(buddy, content) {
     jobs.delete(buddy.id)
     save()
     if (state.selected === buddy.id) render()
+    const queue = queuedMessages.get(buddy.id)
+    if (queue?.length && state.buddies.includes(buddy)) {
+      while (queue.length && !jobs.has(buddy.id)) {
+        const { message: next, provider, model } = queue.shift()
+        if (!queue.length) queuedMessages.delete(buddy.id)
+        if (provider === buddy.provider && model === buddy.model && canSendTo(buddy)) {
+          void requestReply(buddy, next, true)
+        } else {
+          next.deliveryNote = 'Message was not sent. Copy it into a new message to resend.'
+          buddy.messages.push(next)
+          save()
+          if (state.selected === buddy.id) render()
+        }
+      }
+    }
   }
 }
 
