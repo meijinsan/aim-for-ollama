@@ -27,7 +27,11 @@ async function open() {
     if (pathname === '/api/tags') await ollamaReady
     const headers = {}
     if (pathname === '/api/openclaw/chat') {
-      if (request.headers.get('origin') !== 'aim://desktop') return new Response(null, { status: 403 })
+      // Chromium can serialize the custom scheme's origin as null.
+      const origin = request.headers.get('origin')
+      if (origin && origin !== 'null' && origin !== 'aim://desktop') {
+        return Response.json({ error: 'AIM blocked a request from outside the desktop app.' }, { status: 403 })
+      }
       headers.Origin = backend
     }
     const type = request.headers.get('content-type')
