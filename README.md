@@ -20,6 +20,8 @@ The app defaults to Ollama at `http://127.0.0.1:11434`. Set the `OLLAMA_URL` env
 
 ## Buddy personality
 
+To chat with an OpenClaw agent, use **Add Buddy**, set **Buddy type** to **OpenClaw agent**, and enter `openclaw/default` or `openclaw/<agentId>`. Start your local OpenClaw Gateway with its Chat Completions endpoint enabled. Set the Windows user environment variable `OPENCLAW_GATEWAY_TOKEN` to the Gateway token and restart AIM. If the Gateway uses a custom port, set `OPENCLAW_GATEWAY_PORT` as well. AIM sends the buddy's conversation to the agent, which uses its configured model and tools. The Gateway token grants operator access. See the [OpenClaw Gateway documentation](https://docs.openclaw.ai/gateway/openai-http-api).
+
 In **Add Buddy** or **Edit Buddy**, use **Gender**, **Mood**, and **Conversation style** to set optional defaults alongside the system prompt.
 
 For a buddy created with OpenAI in an older build, open **Edit Buddy** and select an Ollama model. Its chat history stays with the buddy.

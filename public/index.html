@@ -93,7 +93,10 @@
       <div class="editor-body">
         <label>Screen name<input name="name" required maxlength="36" placeholder="e.g. StudyBuddy"></label>
         <p id="legacy-provider-notice" hidden>Choose an Ollama model to use this buddy again.</p>
-        <label>Ollama model<select name="model" required></select></label>
+        <label>Buddy type<select name="provider"><option value="ollama">Ollama model</option><option value="openclaw">OpenClaw agent</option></select></label>
+        <label id="ollama-model">Ollama model<select name="model" required></select></label>
+        <label id="openclaw-agent" hidden>OpenClaw agent<input name="agent" maxlength="128" placeholder="openclaw/default" pattern="openclaw/[a-zA-Z0-9_\\-]+" disabled></label>
+        <p id="openclaw-info" hidden>This buddy uses the agent’s configured model and tools.</p>
         <label id="custom-model" hidden>Model name<input name="customModel" maxlength="128" placeholder="Type a model name" disabled></label>
         <fieldset class="buddy-traits">
           <legend>Personality</legend>

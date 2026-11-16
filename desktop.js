@@ -26,6 +26,10 @@ async function open() {
     if (hostname !== 'desktop') return new Response(null, { status: 404 })
     if (pathname === '/api/tags') await ollamaReady
     const headers = {}
+    if (pathname === '/api/openclaw/chat') {
+      if (request.headers.get('origin') !== 'aim://desktop') return new Response(null, { status: 403 })
+      headers.Origin = backend
+    }
     const type = request.headers.get('content-type')
     if (type) headers['Content-Type'] = type
     return fetch(backend + pathname, {

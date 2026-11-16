@@ -47,6 +47,7 @@ const draftFormats = new Map()
 const notices = new Map()
 let models = []
 let connected = false
+let clawConfigured = false
 const traitNames = { gender: 'Gender', mood: 'Mood', style: 'Conversation style' }
 let editing = null
 let storageFailed = false
@@ -144,7 +145,7 @@ function renderRoster() {
   $('#buddies').replaceChildren(...state.buddies.map((buddy) => {
     const selected = buddy.id === state.selected
     const openai = buddy.provider === 'openai'
-    const ready = !openai && models.includes(buddy.model)
+    const ready = buddy.provider === 'openclaw' ? clawConfigured : !openai && models.includes(buddy.model)
     const row = node('button', '', 'buddy' + (selected ? ' active' : '') + (ready ? ' ready' : ''))
     row.type = 'button'
     row.setAttribute('aria-pressed', selected)
@@ -167,9 +168,10 @@ function renderComposer() {
   const buddy = active()
   const busy = jobs.has(buddy?.id)
   const openai = buddy?.provider === 'openai'
-  const ready = !openai && connected
+  const claw = buddy?.provider === 'openclaw'
+  const ready = claw ? clawConfigured : !openai && connected
   const offline = openai ? 'Open Edit Buddy and choose an Ollama model.'
-    : 'Start Ollama, then refresh the connection.'
+    : claw ? 'Set OPENCLAW_GATEWAY_TOKEN and restart AIM.' : 'Start Ollama, then refresh the connection.'
   $('#notice').textContent = storageFailed ? 'Browser storage is unavailable. Changes may be lost after reload.'
     : notices.get(buddy?.id) || (buddy && !ready ? offline : '')
   $('#send').disabled = !buddy || busy || !ready || !messageBox.value.trim()
@@ -263,6 +265,7 @@ function render() {
 }
 
 async function connect() {
+  refreshClaw()
   const button = $('#connection')
   const label = button.querySelector('span')
   button.disabled = true
@@ -302,9 +305,27 @@ async function connect() {
   }
 }
 
+async function refreshClaw() {
+  try {
+    const response = await fetch('/api/openclaw/status', { cache: 'no-store' })
+    clawConfigured = response.ok && (await response.json()).configured === true
+  } catch {
+    clawConfigured = false
+  }
+  renderRoster()
+  renderComposer()
+}
+
 function syncCustomModel() {
-  const { model, customModel } = buddyForm.elements
-  const manual = model.value === customModelOption
+  const { model, customModel, provider, agent } = buddyForm.elements
+  const claw = provider.value === 'openclaw'
+  const manual = !claw && model.value === customModelOption
+  $('#ollama-model').hidden = claw
+  $('#openclaw-agent').hidden = !claw
+  $('#openclaw-info').hidden = !claw
+  model.disabled = claw
+  agent.disabled = !claw
+  agent.required = claw
   $('#custom-model').hidden = !manual
   customModel.disabled = !manual
   customModel.required = manual
@@ -331,8 +352,11 @@ function openEditor(buddy) {
   $('#remove').hidden = !buddy
   buddyForm.elements.name.value = buddy?.name || ''
   const needsModel = buddy?.provider === 'openai'
+  const claw = buddy?.provider === 'openclaw'
+  buddyForm.elements.provider.value = claw ? 'openclaw' : 'ollama'
+  buddyForm.elements.agent.value = claw ? buddy.model : 'openclaw/default'
   $('#legacy-provider-notice').hidden = !needsModel
-  setModelOptions(needsModel ? '' : buddy?.model)
+  setModelOptions(needsModel ? '' : claw ? undefined : buddy?.model)
   for (const trait of Object.keys(traitNames)) {
     const field = buddyForm.elements[trait]
     field.value = buddy?.traits?.[trait] || ''
@@ -483,10 +507,11 @@ $('#remove').addEventListener('click', () => {
 
 buddyForm.addEventListener('input', (event) => event.target.setCustomValidity?.(''))
 buddyForm.elements.model.addEventListener('change', syncCustomModel)
+buddyForm.elements.provider.addEventListener('change', syncCustomModel)
 buddyForm.addEventListener('submit', (event) => {
   event.preventDefault()
-  const { name, model, customModel, prompt } = buddyForm.elements
-  const modelField = customModel.disabled ? model : customModel
+  const { name, model, customModel, prompt, provider, agent } = buddyForm.elements
+  const modelField = provider.value === 'openclaw' ? agent : customModel.disabled ? model : customModel
   for (const field of [name, modelField]) {
     if (field.value.trim()) continue
     field.setCustomValidity('Enter a value.')
@@ -494,8 +519,10 @@ buddyForm.addEventListener('submit', (event) => {
     return
   }
   const traits = Object.fromEntries(Object.keys(traitNames).map((trait) => [trait, buddyForm.elements[trait].value]))
-  const settings = { name: name.value.trim(), provider: 'ollama', model: modelField.value.trim(), prompt: prompt.value.trim(), traits }
+  const settings = { name: name.value.trim(), provider: provider.value, model: modelField.value.trim(), prompt: prompt.value.trim(), traits }
   const buddy = state.buddies.find(({ id }) => id === editing)
+  if (settings.provider === 'openclaw' && buddy && buddy.provider !== 'openclaw' && buddy.messages.length &&
+      !confirm('Future messages will share this buddy’s chat history with the selected OpenClaw agent. Switch buddy type?')) return
   if (buddy) Object.assign(buddy, settings)
   else {
     state.selected = crypto.randomUUID()
@@ -526,7 +553,8 @@ $('#compose').addEventListener('submit', async (event) => {
   event.preventDefault()
   const buddy = active()
   const content = messageBox.value.trim()
-  if (!buddy || buddy.provider === 'openai' || !connected || !content || jobs.has(buddy.id)) return
+  const claw = buddy?.provider === 'openclaw'
+  if (!buddy || buddy.provider === 'openai' || !(claw ? clawConfigured : connected) || !content || jobs.has(buddy.id)) return
 
   const job = {
     controller: new AbortController(),
@@ -548,7 +576,7 @@ $('#compose').addEventListener('submit', async (event) => {
     const personality = traits.length ? 'Portray this buddy with these defaults when consistent with the system prompt.\n' + traits.join('\n') : ''
     const instructions = [buddy.prompt, personality].filter(Boolean).join('\n\n')
     if (instructions) messages.unshift({ role: 'system', content: instructions })
-    const response = await fetch('/api/chat', {
+    const response = await fetch(claw ? '/api/openclaw/chat' : '/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: buddy.model, messages, stream: true }),
@@ -558,7 +586,7 @@ $('#compose').addEventListener('submit', async (event) => {
       const raw = await response.text()
       let error = raw
       try { error = JSON.parse(raw).error } catch {}
-      throw new Error(error || 'Ollama returned HTTP ' + response.status + '.')
+      throw new Error(error || (claw ? 'OpenClaw' : 'Ollama') + ' returned HTTP ' + response.status + '.')
     }
     let buffer = ''
     let rawReply = ''
